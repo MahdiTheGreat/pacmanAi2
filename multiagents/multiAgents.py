@@ -15,9 +15,26 @@
 from util import manhattanDistance
 from game import Directions
 import random, util
+import math
+import treelib
+
+
 
 from game import Agent
 
+
+def euclideanDistance(position, nextPosition):
+    "The Euclidean distance heuristic for a PositionSearchProblem"
+    xy1 = position
+    xy2 = nextPosition
+    return ( (xy1[0] - xy2[0]) ** 2 + (xy1[1] - xy2[1]) ** 2 ) ** 0.5
+
+def manhattanDistance(position, nextPosition):
+    "The Manhattan distance heuristic for a PositionSearchProblem"
+    xy1 = position
+    xy2 = nextPosition
+    print()
+    return abs(xy1[0] - xy2[0]) + abs(xy1[1] - xy2[1])
 
 class ReflexAgent(Agent):
     """
@@ -72,6 +89,50 @@ class ReflexAgent(Agent):
         newFood = successorGameState.getFood()
         newGhostStates = successorGameState.getGhostStates()
         newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
+        print()
+        distanceFuncs=[euclideanDistance,manhattanDistance]
+        currentDistanceFunc=distanceFuncs[0]
+
+        foodPositions=[]
+        foodGrid=newFood.data
+        ghostPositions=[]
+        ghostDistances=[]
+        sumGhostDistance = 0
+        for i in range(len(newGhostStates)):
+            ghostPosition=newGhostStates[i].configuration.pos
+            ghostPositions.append(ghostPosition)
+            ghostDistances.append(currentDistanceFunc(newPos,ghostPosition))
+            sumGhostDistance += ghostDistances[len(ghostDistances)-1]
+
+        print()
+        for i in range(len(foodGrid)):
+           for j in range(len(foodGrid[i])):
+               if foodGrid[i][j]:foodPositions.append((i,j))
+
+
+        sumFoodDistance = 0
+        foodDistances=[]
+
+        for i in range(len(foodPositions)):
+           foodDistances.append(currentDistanceFunc(newPos, foodPositions[i]))
+           sumFoodDistance += foodDistances[len(foodDistances)-1]
+
+        dangerFlag=False
+        for i in range(len(ghostPositions)):
+            if euclideanDistance(newPos,ghostPositions[i])<3:
+             dangerFlag=True
+#
+        if dangerFlag:return -math.inf
+        #else:return successorGameState.getScore()+(math.inf if len(foodDistances) else 1/min(foodDistances))
+        else:
+            return successorGameState.getScore() + (math.inf if len(foodDistances)==0 else 1 / min(foodDistances))
+#
+        #elif sumFoodDistance == 0:
+        #    return math.inf
+        #else:
+
+
+        print()
 
         "*** YOUR CODE HERE ***"
         return successorGameState.getScore()
@@ -108,13 +169,92 @@ class MultiAgentSearchAgent(Agent):
         self.evaluationFunction = util.lookup(evalFn, globals())
         self.depth = int(depth)
 
+def stateIdMaker(state, mode=0):
+
+    if mode == 0:
+        return id(state)
+    elif mode == 1:
+        return hash(state)
+    elif mode == 2:
+        return state
 
 class MinimaxAgent(MultiAgentSearchAgent):
     """
     Your minimax agent (question 2)
     """
+    #def getActionsAndSuccessors(self, gameState,agentIndex=0):
+    #    "Returns successor states, the actions they require, and a cost of 1."
+    #    successors = []
+    #    actions = gameState.getLegalActions(self)
+    #    for action in actions:
+    #        successors.append([action,gameState.generateSuccessor(agentIndex, action)])
+    #    print()
+    #    return successors
+
+
+    #def maxValue(self,state,tree):
+    #    agentIndex=0
+    #    if state.isWin() or state.isLose() or tree.depth()>self.depth: return self.evaluationFunction(state)
+    #    v=-math.inf
+    #    actionsAndSuccessors=self.getActionsAndSuccessors(state)
+    #    for actionAndSuccessor in actionsAndSuccessors:
+    #        score=self.minValue(actionAndSuccessor[1],tree,agentIndex)
+    #        tree.create_node(identifier=actionAndSuccessor[1],parent=state,data=[score,actionAndSuccessor[0]])
+    #        v=max(v,score)
+    #    return v
+
+    def maxValue(self,state,tree,agentIndex=0):
+
+       if state.isWin() or state.isLose() or tree.depth(stateIdMaker(state))>self.depth: return self.evaluationFunction(state)
+       v=-math.inf
+       actions = state.getLegalActions(agentIndex)
+
+       for action in actions:
+           successor=state.generateSuccessor(agentIndex, action)
+           tree.create_node(identifier=stateIdMaker(successor), parent=stateIdMaker(state), data=[action])
+           print()
+           score=self.minValue(successor,tree,agentIndex+1)
+           tree.get_node(stateIdMaker(successor)).data.append(score)
+           print()
+           v=max(v,score)
+
+       return v
+
+    def minValue(self, state, tree,agentIndex):
+        if state.isWin() or state.isLose() or tree.depth(stateIdMaker(state)) > self.depth: return self.evaluationFunction(state)
+        v = math.inf
+        agentNum=state.getNumAgents()
+        currentAgentIndex=agentIndex % (agentNum-1)
+        print()
+        actions = state.getLegalActions(agentIndex)
+
+        for action in actions:
+            successor = state.generateSuccessor(agentIndex, action)
+            tree.create_node(identifier=stateIdMaker(successor), parent=stateIdMaker(state), data=[action])
+            print()
+
+            if currentAgentIndex:score = self.minValue(successor,tree,currentAgentIndex+1)
+            else: score=self.maxValue(successor, tree)
+            tree.get_node(stateIdMaker(successor)).data.append(score)
+            v = min(v, score)
+        return v
+
 
     def getAction(self, gameState):
+
+        tree = treelib.Tree()
+        tree.create_node(identifier=stateIdMaker(gameState),parent=None,data=None)
+        self.maxValue(gameState,tree)
+        print()
+        sucessors=tree.children(stateIdMaker(gameState))
+
+        max=sucessors[0]
+        for sucessor in sucessors:
+            if sucessor.data[1]>=max.data[1]:max=sucessor
+
+        return max.data[0]
+
+
         """
         Returns the minimax action from the current gameState using self.depth
         and self.evaluationFunction.
