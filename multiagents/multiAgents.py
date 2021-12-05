@@ -169,7 +169,7 @@ class MultiAgentSearchAgent(Agent):
         self.evaluationFunction = util.lookup(evalFn, globals())
         self.depth = int(depth)
 
-def stateIdMaker(state, mode=0):
+def stateIdMaker(state, mode=2):
 
     if mode == 0:
         return id(state)
@@ -177,6 +177,8 @@ def stateIdMaker(state, mode=0):
         return hash(state)
     elif mode == 2:
         return state
+
+
 
 class MinimaxAgent(MultiAgentSearchAgent):
     """
@@ -203,38 +205,41 @@ class MinimaxAgent(MultiAgentSearchAgent):
     #        v=max(v,score)
     #    return v
 
-    def maxValue(self,state,tree,agentIndex=0):
+    def terminalStateChecker(self,state,tree):
+        return state.isWin() or state.isLose() or tree.depth(stateIdMaker(state))>(self.depth)
 
-       if state.isWin() or state.isLose() or tree.depth(stateIdMaker(state))>self.depth: return self.evaluationFunction(state)
+    def maxValue(self,state,tree,agentIndex=0):
+       if self.terminalStateChecker(state,tree):return self.evaluationFunction(state)
        v=-math.inf
        actions = state.getLegalActions(agentIndex)
 
        for action in actions:
            successor=state.generateSuccessor(agentIndex, action)
-           tree.create_node(identifier=stateIdMaker(successor), parent=stateIdMaker(state), data=[action])
-           print()
+           if not tree.contains(stateIdMaker(successor)):
+               tree.create_node(identifier=stateIdMaker(successor), parent=stateIdMaker(state), data=[action])
            score=self.minValue(successor,tree,agentIndex+1)
            tree.get_node(stateIdMaker(successor)).data.append(score)
-           print()
            v=max(v,score)
 
        return v
 
     def minValue(self, state, tree,agentIndex):
-        if state.isWin() or state.isLose() or tree.depth(stateIdMaker(state)) > self.depth: return self.evaluationFunction(state)
+        if self.terminalStateChecker(state,tree): return self.evaluationFunction(state)
         v = math.inf
         agentNum=state.getNumAgents()
         currentAgentIndex=agentIndex % (agentNum-1)
-        print()
         actions = state.getLegalActions(agentIndex)
+        print()
 
         for action in actions:
             successor = state.generateSuccessor(agentIndex, action)
-            tree.create_node(identifier=stateIdMaker(successor), parent=stateIdMaker(state), data=[action])
-            print()
+
+            if not tree.contains(stateIdMaker(successor)):
+                tree.create_node(identifier=stateIdMaker(successor), parent=stateIdMaker(state), data=[action])
 
             if currentAgentIndex:score = self.minValue(successor,tree,currentAgentIndex+1)
             else: score=self.maxValue(successor, tree)
+
             tree.get_node(stateIdMaker(successor)).data.append(score)
             v = min(v, score)
         return v
@@ -243,9 +248,11 @@ class MinimaxAgent(MultiAgentSearchAgent):
     def getAction(self, gameState):
 
         tree = treelib.Tree()
+        if tree.contains(stateIdMaker(gameState)):
+            print()
+
         tree.create_node(identifier=stateIdMaker(gameState),parent=None,data=None)
         self.maxValue(gameState,tree)
-        print()
         sucessors=tree.children(stateIdMaker(gameState))
 
         max=sucessors[0]
