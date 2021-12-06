@@ -98,6 +98,7 @@ class ReflexAgent(Agent):
         ghostPositions=[]
         ghostDistances=[]
         sumGhostDistance = 0
+        eatenFood=0
         for i in range(len(newGhostStates)):
             ghostPosition=newGhostStates[i].configuration.pos
             ghostPositions.append(ghostPosition)
@@ -108,6 +109,7 @@ class ReflexAgent(Agent):
         for i in range(len(foodGrid)):
            for j in range(len(foodGrid[i])):
                if foodGrid[i][j]:foodPositions.append((i,j))
+               else:eatenFood+=1
 
 
         sumFoodDistance = 0
@@ -119,20 +121,23 @@ class ReflexAgent(Agent):
 
         dangerFlag=False
         for i in range(len(ghostPositions)):
-            if euclideanDistance(newPos,ghostPositions[i])<3:
+            if currentDistanceFunc(newPos,ghostPositions[i])<3:
              dangerFlag=True
 #
         if dangerFlag:return -math.inf
         #else:return successorGameState.getScore()+(math.inf if len(foodDistances) else 1/min(foodDistances))
         else:
-            return successorGameState.getScore() + (math.inf if len(foodDistances)==0 else 1 / min(foodDistances))
+            #return  (math.inf if (len(foodDistances)==0 or min(foodDistances)==0) else (1 / min(foodDistances)))
+            #return math.inf if (len(foodDistances) == 0 or min(foodDistances) == 0) else 1/min(foodDistances)+eatenFood
+            return math.inf if (len(foodDistances) == 0 or min(foodDistances) == 0) else 1 / (sumFoodDistance/len(foodDistances)) + eatenFood + 1/min(foodDistances)
+
 #
         #elif sumFoodDistance == 0:
         #    return math.inf
         #else:
 
 
-        print()
+
 
         "*** YOUR CODE HERE ***"
         return successorGameState.getScore()
@@ -205,61 +210,57 @@ class MinimaxAgent(MultiAgentSearchAgent):
     #        v=max(v,score)
     #    return v
 
-    def terminalStateChecker(self,state,tree):
-        return state.isWin() or state.isLose() or tree.depth(stateIdMaker(state))>(self.depth)
+    def terminalStateChecker(self,state,depth):
+        givenDepth=self.depth
+        statement=state.isWin() or state.isLose() or depth == (givenDepth)
+        print()
+        return statement
 
-    def maxValue(self,state,tree,agentIndex=0):
-       if self.terminalStateChecker(state,tree):return self.evaluationFunction(state)
+    def maxValue(self,state,depth,agentIndex=0):
+
+       if self.terminalStateChecker(state,depth):return self.evaluationFunction(state)
        v=-math.inf
        actions = state.getLegalActions(agentIndex)
+       successors=[]
 
        for action in actions:
            successor=state.generateSuccessor(agentIndex, action)
-           if not tree.contains(stateIdMaker(successor)):
-               tree.create_node(identifier=stateIdMaker(successor), parent=stateIdMaker(state), data=[action])
-           score=self.minValue(successor,tree,agentIndex+1)
-           tree.get_node(stateIdMaker(successor)).data.append(score)
+           successors.append(successor)
+           print()
+           score=self.minValue(state=successor,depth=depth,agentIndex=agentIndex+1)
            v=max(v,score)
+           if depth==0 and v==score:bestAction=action
 
-       return v
+       print()
+       if depth==0:return bestAction
+       else:return v
 
-    def minValue(self, state, tree,agentIndex):
-        if self.terminalStateChecker(state,tree): return self.evaluationFunction(state)
+
+
+    def minValue(self, state, depth,agentIndex):
+        if self.terminalStateChecker(state,depth):return self.evaluationFunction(state)
         v = math.inf
-        agentNum=state.getNumAgents()
-        currentAgentIndex=agentIndex % (agentNum-1)
-        actions = state.getLegalActions(agentIndex)
+        agentNum=state.getNumAgents()-1
+        currentAgentIndex=agentIndex % (agentNum)
         print()
+        actions = state.getLegalActions(agentIndex)
+        successors=[]
 
         for action in actions:
             successor = state.generateSuccessor(agentIndex, action)
-
-            if not tree.contains(stateIdMaker(successor)):
-                tree.create_node(identifier=stateIdMaker(successor), parent=stateIdMaker(state), data=[action])
-
-            if currentAgentIndex:score = self.minValue(successor,tree,currentAgentIndex+1)
-            else: score=self.maxValue(successor, tree)
-
-            tree.get_node(stateIdMaker(successor)).data.append(score)
+            successors.append(successor)
+            print()
+            if currentAgentIndex:score = self.minValue(state=successor,depth=depth,agentIndex=currentAgentIndex+1)
+            else: score=self.maxValue(state=successor, depth=depth+1)
             v = min(v, score)
+        print()
         return v
 
 
     def getAction(self, gameState):
 
-        tree = treelib.Tree()
-        if tree.contains(stateIdMaker(gameState)):
-            print()
 
-        tree.create_node(identifier=stateIdMaker(gameState),parent=None,data=None)
-        self.maxValue(gameState,tree)
-        sucessors=tree.children(stateIdMaker(gameState))
-
-        max=sucessors[0]
-        for sucessor in sucessors:
-            if sucessor.data[1]>=max.data[1]:max=sucessor
-
-        return max.data[0]
+        return self.maxValue(gameState,0)
 
 
         """
